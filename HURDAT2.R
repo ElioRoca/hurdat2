@@ -16,9 +16,11 @@ if(!require(httr)){install.packages('httr', dependencies = TRUE);library(httr)}
 setup_twitter_oauth('YxHk6vMBofPUKTzn3lbnuhWSY',
                     'E5Aj7UodHyjM5yP6eGjs54KGSXKOGRJ9BnzmMe6N5V2X5XZfhC', '4745829336-J3vndMsTB1oBdMgnEH8YISmaqVRCzXa16zRlIZe', 'x7VF1cOcxuj0WvSvElJK1yYe7gQWiZfmiE05U2TKzehsY')
 #working directory
-if(!file.exists('ca')){dir.create('ca');setwd('ca')}
+if(!file.exists('ca')){dir.create('ca');setwd('ca')};setwd('ca')
 #HURDAT2 data
-ca=data.table(get_hurdat()) #dim 76559    23
+if(file.exists('ca.RDS')){ca=readRDS('ca.RDS')}
+ca=data.table(get_hurdat()) #dim 76559    21
+dim(ca)
 #Arrange data
 colnames(ca)=c('ID','Name','Date','Record', 'Type', 'Latitude', 
                'Longitude', 'Wind', 'Pressure', 
@@ -33,6 +35,7 @@ setcolorder(ca, c('ID','Basin','Ordinality','Name','Year','Date','Record', 'Type
                   'NE34','SE34','SW34','NW34',
                   'NE50','SE50','SW50','NW50',
                   'NE64','SE64','SW64','NW64')) #rearrange columns
+if(!file.exists('ca.RDS')){saveRDS(ca,'ca.RDS')}
 #daily plots
 repeat{Sys.sleep(1)
 #timer
@@ -46,55 +49,63 @@ repeat{Sys.sleep(1)
   yl=c(min(ca.d$Latitude),max(ca.d$Latitude))
   ca.d.max=ca[ID==ca.d$ID[which.max(ca.d$Wind)]]
 #Trajectories
-  file=paste('caNAEP',year,month,day ,'.jpeg',sep='')
-  jpeg(file, height=3, width=6, units='in', res=400)
+  f=paste('caNAEP',month,day ,'.jpg',sep='')
+  dev.new()
+  jpeg(f, height=3, width=6, units='in', res=600)
   ggplot(data = map_data("world"), aes(long, lat, group = group)) +
     geom_path(color='gray') + theme_bw() +
     geom_point(data=ca.d, aes(x=Longitude, y=Latitude,group=ID,color=Wind))+
     scale_color_gradientn(colours=matlab.like(10)) +
-    geom_path(data=ca.d, aes(x=Longitude, y=Latitude,group=ID) ) +
-    labs(title=paste("Historical cyclone advices on ",month.name[as.integer(month)],' ',day,'. The strongest is ',ca.d.max$Name[1],ca.d.max$Year[1],'*',sep=''),x='Longitude',y='Latitude',color='Wind (kt)', subtitle=paste('Atlantic (', format(min(ca$Date[ca$Basin=='AL']),'%Y'), '-',format(max(ca$Date[ca$Basin=='AL']),'%Y'),"), Central Pacific (", format(min(ca$Date[ca$Basin=='CP']),'%Y'), '-', format(max(ca$Date[ca$Basin=='CP']),'%Y'), ") &  Easter Pacific (", format(min(ca$Date[ca$Basin=='EP']),'%Y'), '-', format(max(ca$Date[ca$Basin=='EP']),'%Y'), ')\nRoca Flores E @eliorocaflores elioroca@gmail.com  2017. HURDAT2 data',sep="")  )+
-    geom_text(data=ca.d.max[which(format(ca.d.max$Date,'%d')==day)][1], aes(x=Longitude, y=Latitude,label='*' ),group=NA, alpha=0.8, show.legend=F) +
+    geom_path(data=ca.d, aes(x=Longitude, y=Latitude,group=ID) ) + 
+    labs(title=paste('Historical tropical cyclone advices close America on',month.name[as.integer(month)],day),x='Longitude',y='Latitude',color='Wind (kt)', subtitle=paste('The strongest is ',ca.d.max$Name[1],ca.d.max$Year[1],'*\nRoca Flores E @eliorocaflores elioroca@gmail.com  2017. HURDAT2 data',sep="")  )+
+    geom_text(data=ca.d.max[which(format(ca.d.max$Date,'%d')==day)][1], aes(x=Longitude, y=Latitude,label='*',group =ID)  ) +
     scale_x_continuous(limits=xl) +scale_y_continuous(limits=yl)
-  dev.off()
-  tweet(paste('Historical tropical cyclone (#hurricane) activity in #NorthAmerica for #',month.name[as.integer(month)],day,' (#HURDAT2) @timtrice @philklotzbach @JBElsner @ricobert1',sep=''), mediaPath = file)
-#M?xico
+  dev.off() #close plot window #always close device  
+  tweet(paste('Historical tropical cyclone (#hurricane) activity in #NorthAmerica for #',month.name[as.integer(month)],day,' (#HURDAT2) @timtrice @philklotzbach @JBElsner @ricobert1',sep=''), mediaPath = f)
+#Mexico
   ca.d.mx=ca.d[-120<=Longitude&Longitude<=-80&5<=Latitude&Latitude<=35]
   ca.d.mx.max=ca[ID==ca.d.mx$ID[which.max(ca.d.mx$Wind)]]
-  file=paste('caMX',year,month,day ,'.jpeg',sep='')
-  jpeg(file, height=3, width=3, units='in', res=500)
+  f=paste('caMX',month,day ,'.jpeg',sep='')
+  jpeg(f, height=3, width=5, units='in', res=100) #the image must have labs inside to work tweet
   ggmap(get_map(location=c(-100,20) , zoom = 4, maptype = 'terrain'))+
       geom_point(data=ca.d.mx, aes(x=Longitude, y=Latitude,group=ID,color=Wind))+
       scale_color_gradientn(colours=matlab.like(10)) +
       geom_path(data=ca.d.mx, aes(x=Longitude, y=Latitude,group=ID) ) +
-      labs(title=paste(ca.d.mx.max$Name,format(ca.d.mx.max$Date,'%Y')," is the strongest Tropical Cyclone \nnear México for ",month.name[as.integer(month)]," ",day," from 1851 to 2016",sep=""),x='Longitude',y='Latitude',color='Wind (kn)', subtitle='Roca Flores E @eliorocaflores elioroca@gmail.com  2017. HURDAT2 data') +
+      labs(title=paste(ca.d.mx.max$Name,format(ca.d.mx.max$Date,'%Y'),"* is the strongest tropical cyclone \nnear Mexico for ",month.name[as.integer(month)]," ",day," from 1851 to 2016",sep=""),x='Longitude',y='Latitude',color='Wind (kn)', subtitle='Roca Flores E @eliorocaflores 2017. HURDAT2 data') +
       geom_text(data=ca.d.mx.max[which(format(ca.d.mx.max$Date,'%d')==day)][1], aes(x=Longitude, y=Latitude,label='*' ) ) +
       scale_x_continuous(limits=c(-120,-80)) +scale_y_continuous(limits=c(5,35))
   dev.off()
-  tweet(paste('Reportes históricos de ciclones tropicales cerca de México para #',month.name[as.integer(month)],day,'. #HURDAT2 @ciclotrop @conagua_clima',sep=''), mediaPath = file)
+  tweet(paste('Reportes históricos de ciclones tropicales cerca de México para #',month.name[as.integer(month)],day,'. #HURDAT2 @ciclotrop @conagua_clima',sep=''), mediaPath = f)
   ca.d.mx[Type=='HU'&Record=='L']
 #Caribbean
   ca.d.qroo=ca.d[15<=Latitude&Latitude<=25&-90<=Longitude&Longitude<=-80]
-  file=paste('caQROO',year,month,day ,'.jpeg',sep='')
-  jpeg(file, height=3, width=3, units='in', res=500)
-  ggmap(get_map(location=c(-85,20) , zoom = 6, maptype = 'terrain')) +geom_point(data=ca.d.qroo, aes(x=Longitude, y=Latitude,color=Wind,shape=Year) ) + geom_path(data=ca.d.qroo, aes(x=Longitude, y=Latitude,group=ID,color=Wind) ) + scale_shape_manual(values=1:length(unique(ca.d.qroo$Year))) +labs(title=paste("Historical cyclone advices on",month.name[as.integer(month)],day,"from 1851 to 2016"),x='Longitude',y='Latitude',color='Wind (kt)',shape='Year', subtitle='Roca Flores E @eliorocaflores elioroca@gmail.com  2017. HURDAT2 data')  +scale_color_gradientn(colours=matlab.like(10)) + scale_x_continuous(limits = c(-90, -80))+ scale_y_continuous(limits = c(15, 25))
+  f=paste('caQROO',month,day ,'.jpeg',sep='')
+  jpeg(f, height=4, width=7, units='in', res=100)
+  ggmap(get_map(location=c(-85,20) , zoom = 6, maptype = 'terrain')) +
+  geom_point(data=ca.d.qroo, aes(x=Longitude, y=Latitude,color=Wind,shape=Year) ) +
+  geom_path(data=ca.d.qroo, aes(x=Longitude, y=Latitude,group=ID,color=Wind) ) +
+  scale_shape_manual(values=1:length(unique(ca.d.qroo$Year))) +
+  labs(title=paste("Historical cyclone advices on",month.name[as.integer(month)],day,"from 1851 to 2016"),x='Longitude',y='Latitude',color='Wind (kt)',shape='Year', subtitle='Roca Flores E @eliorocaflores elioroca@gmail.com  2017. HURDAT2 data')  +
+  scale_color_gradientn(colours=matlab.like(10)) + scale_x_continuous(limits = c(-90, -80))+ scale_y_continuous(limits = c(15, 25))
   dev.off()
-  tweet(paste('Reportes históricos de ciclones tropicales (#huracanes) cerca de #QRoo para #',month.name[as.integer(month)],day,'. #HURDAT2 @ciclotrop @conagua_clima',sep=''), mediaPath = file)
-  #Strongest hurricane
-  file=paste('caQROO',year,month,day ,'.jpeg',sep='')
-  jpeg(file, height=3, width=3, units='in', res=500)
+  tweet(paste('Reportes históricos de ciclones tropicales (#huracanes) cerca de #QRoo para #',month.name[as.integer(month)],day,'. #HURDAT2 @ciclotrop @conagua_clima',sep=''), mediaPath = f)
+#Strongest hurricane
   xl=c(min(ca.d.max$Longitude),max(ca.d.max$Longitude))
   yl=c(min(ca.d.max$Latitude),max(ca.d.max$Latitude))
-  mapart=get_map(location=c(mean(xl),mean(yl)), zoom=3, maptype='watercolor', source="stamen")
+  mapart=get_map(location=c(mean(xl),mean(yl)), zoom=4, maptype='watercolor', source="stamen") #zoom higher than 3
+  f=paste('camax',month,day ,'.jpeg',sep='')
+  jpeg(f, height=4, width=8, units='in', res=100)
   ggmap(mapart)+ geom_path(data=ca.d.max, aes(x=Longitude, y=Latitude,group=Year) )+ 
-    geom_point(data=ca.d.max, aes(x=Longitude, y=Latitude,color=Wind))+ 
-    geom_point(data=ca.d.max, aes(x=Longitude, y=Latitude,color=Wind,size=NE34))+
-    geom_point(data=ca.d.max, aes(x=Longitude, y=Latitude,size=NE34),color='blue',alpha=.01,size=50)+
+    geom_point(data=ca.d.max, aes(x=Longitude, y=Latitude,color=Wind) )+ 
+    geom_point(data=ca.d.max, aes(x=Longitude, y=Latitude,color=Wind,size=NE34) )+
+    geom_point(data=ca.d.max, aes(x=Longitude, y=Latitude,size=NE34),color='blue',alpha=.01,size=30)+
     labs(title=paste(ca.d.max$Name,format(ca.d.max$Date,'%Y')," is the strongest Tropical Cyclone \nnear America for ",month.name[as.integer(month)]," ",day," from 1851 to 2016",sep=""),x='Longitude',y='Latitude',color='Wind (kn)',size='NE 34kt radius \n(nm)', subtitle='Roca Flores E @eliorocaflores elioroca@gmail.com  2017. HURDAT2 data') +
-    geom_text(data=ca.d.max[which(format(ca.d.max$Date,'%d')==day)[1]], aes(x=Longitude, y=Latitude, label='o')  )  + scale_color_gradientn(colours=matlab.like(10)) 
+    geom_text(data=ca.d.max[which(format(ca.d.max$Date,'%d')==day)[1]], aes(x=Longitude, y=Latitude, label='o')  )  +
+    scale_color_gradientn(colours=matlab.like(10)) 
   dev.off()
-  tweet(paste('Strongest #hurricane near #America for #',month.name[as.integer(month)],day ,' #HURDAT2  @timtrice @philklotzbach @JBElsner @ricobert1 @tjagger',sep=''), mediaPath = file)
+  tweet(paste('Strongest #hurricane near #America for #',month.name[as.integer(month)],day ,' #HURDAT2  @timtrice @philklotzbach @JBElsner @ricobert1 @tjagger',sep=''), mediaPath = f)
   }
 }
+#TAKE 10 MINUTES
 #close
   setwd("C:/Users/e205/Documents/R")
